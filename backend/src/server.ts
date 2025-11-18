@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import session from 'express-session';
 import dotenv from 'dotenv';
-// import chatRoutes from './routes/chat.routes.js';
+import chatRoutes from './routes/chat.routes.js';
 // import healthRoutes from './routes/health.routes.js';
 import authRoutes from './routes/auth.routes.js';
 // import adminRoutes from './routes/admin.routes.js';
@@ -94,10 +94,10 @@ app.use(optionalAuthenticate);
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/chat', chatRoutes);
 // TODO: Add routes as they are implemented
 // app.use('/api/admin', adminRoutes);
 // app.use('/api/health', healthRoutes);
-// app.use('/api/chat', chatRoutes);
 
 // Test endpoint (for backward compatibility)
 app.get('/api/test', (req, res) => {
@@ -143,8 +143,8 @@ app.listen(PORT, () => {
 
   console.log(`🚀 Backend server running on http://localhost:${PORT}`);
   console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth`);
+  console.log(`💬 Chat API: http://localhost:${PORT}/api/chat`);
   // console.log(`📝 Health check: http://localhost:${PORT}/api/health`);
-  // console.log(`💬 Chat API: http://localhost:${PORT}/api/chat`);
   // console.log(`📊 Detailed health: http://localhost:${PORT}/api/health/detailed`);
   // console.log(`🤖 LLM health: http://localhost:${PORT}/api/health/llm`);
 

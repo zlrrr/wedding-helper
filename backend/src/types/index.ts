@@ -112,6 +112,56 @@ export interface LLMConfig {
   temperature: number
   maxTokens: number
   apiUrl?: string
+  baseURL?: string
+  timeout?: number
+}
+
+// Apology/Response types (from reference project, adapted for wedding)
+export type ApologyStyle = 'gentle' | 'formal' | 'empathetic'
+export type LLMProvider = 'openai' | 'anthropic' | 'gemini' | 'lm-studio' | 'custom'
+
+export interface ApologyRequest {
+  history?: LLMMessage[]
+  message: string
+  style?: ApologyStyle
+  emotion?: string
+}
+
+export interface ApologyResponse {
+  apology: string
+  emotion?: string
+  tokensUsed: number
+  model: string
+}
+
+// OpenAI API types
+export interface OpenAIChatMessage {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+}
+
+export interface OpenAIChatRequest {
+  model: string
+  messages: OpenAIChatMessage[]
+  temperature?: number
+  max_tokens?: number
+}
+
+export interface OpenAIChatResponse {
+  id: string
+  object: string
+  created: number
+  model: string
+  choices: Array<{
+    index: number
+    message: OpenAIChatMessage
+    finish_reason: string
+  }>
+  usage: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
 }
 
 // ===== RAG Types =====
