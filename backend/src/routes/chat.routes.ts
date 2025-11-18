@@ -7,6 +7,7 @@ import { authenticate, optionalAuthenticate } from '../middleware/auth.middlewar
 import { verifySessionOwnership } from '../middleware/session-authorization.middleware.js';
 import { sessionService } from '../services/session.service.js';
 import { llmService } from '../services/llm.service.js';
+import { knowledgeService } from '../services/knowledge.service.js';
 import {
   generateGreeting,
   detectMessageType,
@@ -130,9 +131,38 @@ router.post('/message', authenticate, async (req: AuthRequest, res: Response, ne
       messageCount: conversationHistory.length,
     });
 
-    // Build system prompt
-    // TODO: In Phase 5, add RAG context retrieval here
-    const systemPrompt = buildSystemPromptWithContext();
+    // Retrieve RAG context from knowledge base
+    let ragContext = '';
+    try {
+      const contextChunks = knowledgeService.retrieveContext(userId, sanitizedMessage, 5);
+
+      if (contextChunks.length > 0) {
+        ragContext = contextChunks.join('\n\n---\n\n');
+
+        logger.info('[CHAT-005a] RAG context retrieved', {
+          userId,
+          sessionId: currentSessionId,
+          chunksFound: contextChunks.length,
+          contextLength: ragContext.length,
+        });
+      } else {
+        logger.info('[CHAT-005b] No RAG context found', {
+          userId,
+          sessionId: currentSessionId,
+          message: sanitizedMessage,
+        });
+      }
+    } catch (error) {
+      logger.error('[CHAT-WARN] Failed to retrieve RAG context', {
+        error,
+        userId,
+        sessionId: currentSessionId,
+      });
+      // Continue without RAG context if retrieval fails
+    }
+
+    // Build system prompt with RAG context
+    const systemPrompt = buildSystemPromptWithContext(ragContext);
 
     // Call LLM service
     logger.info('[CHAT-006] Calling LLM service', {
