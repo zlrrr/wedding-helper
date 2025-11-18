@@ -15,14 +15,27 @@ interface AdminPageState {
   stats: { documentCount: number; chunkCount: number };
 }
 
+interface LoginState {
+  username: string;
+  password: string;
+  isLoggingIn: boolean;
+  error: string;
+}
+
 const Admin: React.FC = () => {
-  const { user } = useAuth();
+  const { user, login } = useAuth();
   const [state, setState] = useState<AdminPageState>({
     documents: [],
     isLoading: true,
     selectedFiles: [],
     uploadProgress: false,
     stats: { documentCount: 0, chunkCount: 0 },
+  });
+  const [loginState, setLoginState] = useState<LoginState>({
+    username: '',
+    password: '',
+    isLoggingIn: false,
+    error: '',
   });
 
   // Load documents on mount
@@ -129,13 +142,92 @@ const Admin: React.FC = () => {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  /**
+   * Handle login
+   */
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginState((prev) => ({ ...prev, isLoggingIn: true, error: '' }));
+
+    try {
+      await login(loginState.username, loginState.password);
+      logger.info('[Admin] Login successful');
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || '登录失败，请检查用户名和密码';
+      setLoginState((prev) => ({ ...prev, error: errorMessage, isLoggingIn: false }));
+      logger.error('[Admin] Login failed', error);
+    }
+  };
+
   // Check if user is admin
   if (!user || user.role !== 'admin') {
     return (
-      <div className="flex items-center justify-center min-h-screen p-4">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
-          <p className="text-red-800 font-medium">访问被拒绝</p>
-          <p className="text-red-600 text-sm mt-2">只有管理员可以访问此页面</p>
+      <div className="flex items-center justify-center min-h-screen p-4 bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
+          <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">管理员登录</h1>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+                用户名
+              </label>
+              <input
+                id="username"
+                type="text"
+                value={loginState.username}
+                onChange={(e) => setLoginState((prev) => ({ ...prev, username: e.target.value }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="请输入用户名"
+                required
+                disabled={loginState.isLoggingIn}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                密码
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={loginState.password}
+                onChange={(e) => setLoginState((prev) => ({ ...prev, password: e.target.value }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="请输入密码"
+                required
+                disabled={loginState.isLoggingIn}
+              />
+            </div>
+
+            {loginState.error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-red-600 text-sm">{loginState.error}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loginState.isLoggingIn}
+              className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white py-3 rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all shadow-lg"
+            >
+              {loginState.isLoggingIn ? '登录中...' : '登录'}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              默认管理员账号: <span className="font-mono text-blue-600">admin</span>
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              (首次登录后请修改密码)
+            </p>
+          </div>
+
+          <div className="mt-4 text-center">
+            <a href="#chat" className="text-sm text-blue-600 hover:underline">
+              返回聊天页面
+            </a>
+          </div>
         </div>
       </div>
     );
