@@ -194,3 +194,16 @@ export class NotFoundError extends AppError {
     super(404, message)
   }
 }
+
+export class LLMError extends Error {
+  constructor(
+    public code: string,
+    public message: string,
+    public originalError?: any,
+    public statusCode?: number
+  ) {
+    super(message)
+    this.name = 'LLMError'
+    Object.setPrototypeOf(this, LLMError.prototype)
+  }
+}
