@@ -137,7 +137,7 @@ const Chat: React.FC = () => {
                 onChange={(e) => setState((prev) => ({ ...prev, guestName: e.target.value }))}
                 onKeyPress={(e) => e.key === 'Enter' && handleStartChat()}
                 placeholder="您的姓名"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent transition"
+                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent transition"
                 autoFocus
               />
             </div>
@@ -222,7 +222,7 @@ const Chat: React.FC = () => {
               onChange={(e) => setState((prev) => ({ ...prev, inputMessage: e.target.value }))}
               onKeyPress={handleKeyPress}
               placeholder="输入消息... (按 Enter 发送)"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent resize-none transition"
+              className="flex-1 px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent resize-none transition"
               rows={1}
               disabled={state.isLoading}
             />
