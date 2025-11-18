@@ -1,0 +1,33 @@
+services:
+  # Backend API Service
+  - type: web
+    name: wedding-helper-backend
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: cd backend && npm install && npm run build
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BACKEND_PORT
+        value: 5001
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: LLM_MODEL
+        value: gemini-pro
+      - key: CORS_ORIGIN
+        fromService:
+          type: web
+          name: wedding-helper-frontend
+          property: host
+    healthCheckPath: /
+    autoDeploy: true
