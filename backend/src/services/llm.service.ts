@@ -148,6 +148,7 @@ export class LLMService {
 
       // Call LLM API
       const response = await this.chatCompletion({
+        model: this.config.model,
         messages,
         temperature: this.config.temperature,
         max_tokens: this.config.maxTokens,
@@ -180,8 +181,8 @@ export class LLMService {
       return {
         apology: response.choices[0].message.content,
         emotion: detectedEmotion,
-        style,
         tokensUsed: response.usage.total_tokens,
+        model: this.config.model,
       };
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -234,10 +235,7 @@ export class LLMService {
   private async openAIChatCompletion(request: OpenAIChatRequest): Promise<OpenAIChatResponse> {
     const response = await this.client.post<OpenAIChatResponse>(
       '/v1/chat/completions',
-      {
-        model: this.config.model,
-        ...request,
-      }
+      request
     );
 
     return response.data;
@@ -455,9 +453,8 @@ export class LLMService {
           error.message?.includes('ECONNREFUSED') ||
           error.message?.includes('connect') && error.message?.includes('refused')) {
         return new LLMError(
-          'Cannot connect to LM Studio. Please ensure LM Studio is running.',
           'CONNECTION_REFUSED',
-          undefined,
+          'Cannot connect to LM Studio. Please ensure LM Studio is running.',
           error
         );
       }
@@ -465,10 +462,10 @@ export class LLMService {
       // Check for response errors
       if (error.response) {
         return new LLMError(
-          `LM Studio API error: ${error.response.statusText}`,
           'API_ERROR',
-          error.response.status,
-          error
+          `LM Studio API error: ${error.response.statusText}`,
+          error,
+          error.response.status
         );
       }
 
@@ -477,34 +474,31 @@ export class LLMService {
           error.code === 'ECONNABORTED' ||
           error.message?.includes('timeout')) {
         return new LLMError(
-          'Request to LM Studio timed out',
           'TIMEOUT',
-          undefined,
+          'Request to LM Studio timed out',
           error
         );
       }
 
       // Other network errors
       return new LLMError(
-        `Network error: ${error.message}`,
         'NETWORK_ERROR',
-        undefined,
+        `Network error: ${error.message}`,
         error
       );
     }
 
     if (error instanceof Error) {
       return new LLMError(
-        error.message,
         'UNKNOWN_ERROR',
-        undefined,
+        error.message,
         error
       );
     }
 
     return new LLMError(
-      'An unknown error occurred',
-      'UNKNOWN_ERROR'
+      'UNKNOWN_ERROR',
+      'An unknown error occurred'
     );
   }
 
