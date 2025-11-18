@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import chatRoutes from './routes/chat.routes.js';
 // import healthRoutes from './routes/health.routes.js';
 import authRoutes from './routes/auth.routes.js';
+import knowledgeRoutes from './routes/knowledge.routes.js';
 // import adminRoutes from './routes/admin.routes.js';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js';
 import { optionalAuthenticate, isAuthEnabled } from './middleware/auth.middleware.js';
@@ -95,6 +96,7 @@ app.use(optionalAuthenticate);
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/knowledge', knowledgeRoutes);
 // TODO: Add routes as they are implemented
 // app.use('/api/admin', adminRoutes);
 // app.use('/api/health', healthRoutes);
