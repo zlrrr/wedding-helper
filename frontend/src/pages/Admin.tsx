@@ -38,11 +38,13 @@ const Admin: React.FC = () => {
     error: '',
   });
 
-  // Load documents on mount
+  // Load documents on mount (only if user is admin)
   useEffect(() => {
-    loadDocuments();
-    loadStats();
-  }, []);
+    if (user && user.role === 'admin') {
+      loadDocuments();
+      loadStats();
+    }
+  }, [user]);
 
   /**
    * Load documents

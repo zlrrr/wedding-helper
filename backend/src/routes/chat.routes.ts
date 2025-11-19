@@ -25,9 +25,10 @@ const router = express.Router();
  * Send a message and get assistant response
  * Creates new session if sessionId is null
  */
-router.post('/message', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/message', optionalAuthenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user!.userId;
+    // Allow anonymous users (guests) - use userId 0 for anonymous
+    const userId = req.user?.userId || 0;
     const { sessionId, message, guestName } = req.body;
 
     logger.info('[CHAT-001] Processing chat message', {
