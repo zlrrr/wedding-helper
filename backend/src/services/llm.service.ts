@@ -302,18 +302,21 @@ export class LLMService {
       parts: [{ text: msg.content }],
     }));
 
-    // Prepend system message to first user message if exists
-    if (systemMessage && contents.length > 0 && contents[0].role === 'user') {
-      contents[0].parts[0].text = `${systemMessage.content}\n\n${contents[0].parts[0].text}`;
-    }
-
-    const geminiRequest = {
+    // Build Gemini request with systemInstruction (Gemini 1.5+)
+    const geminiRequest: any = {
       contents,
       generationConfig: {
         temperature: request.temperature || this.config.temperature,
         maxOutputTokens: request.max_tokens || this.config.maxTokens,
       },
     };
+
+    // Add system instruction if provided (Gemini 1.5+ feature)
+    if (systemMessage) {
+      geminiRequest.systemInstruction = {
+        parts: [{ text: systemMessage.content }],
+      };
+    }
 
     // Gemini uses API key as query parameter
     const url = `/models/${this.config.model}:generateContent?key=${this.config.apiKey}`;
