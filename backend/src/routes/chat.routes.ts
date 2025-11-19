@@ -98,32 +98,7 @@ router.post('/message', optionalAuthenticate, async (req: AuthRequest, res: Resp
       messageType,
     });
 
-    // Save user message
-    sessionService.addMessage(
-      currentSessionId,
-      userId,
-      { role: 'user', content: sanitizedMessage },
-      0
-    );
-
-    // If it's a blessing, save to guest_messages table
-    if (messageType === 'blessing') {
-      sessionService.saveGuestMessage(
-        currentSessionId,
-        userId,
-        guestName || '匿名宾客',
-        messageType,
-        sanitizedMessage
-      );
-
-      logger.info('[CHAT-004] Blessing saved', {
-        userId,
-        sessionId: currentSessionId,
-        guestName: guestName || '匿名宾客',
-      });
-    }
-
-    // Get recent conversation history for context
+    // Get recent conversation history for context (before saving current message to avoid duplication)
     const conversationHistory = sessionService.getRecentMessages(currentSessionId, userId, 10);
 
     logger.info('[CHAT-005] Retrieved conversation history', {
@@ -232,6 +207,31 @@ router.post('/message', optionalAuthenticate, async (req: AuthRequest, res: Resp
       tokensUsed: llmResponse.tokensUsed,
       responseLength: llmResponse.apology.length,
     });
+
+    // Save user message (after LLM call to avoid duplication in conversation history)
+    sessionService.addMessage(
+      currentSessionId,
+      userId,
+      { role: 'user', content: sanitizedMessage },
+      0
+    );
+
+    // If it's a blessing, save to guest_messages table
+    if (messageType === 'blessing') {
+      sessionService.saveGuestMessage(
+        currentSessionId,
+        userId,
+        guestName || '匿名宾客',
+        messageType,
+        sanitizedMessage
+      );
+
+      logger.info('[CHAT-004] Blessing saved', {
+        userId,
+        sessionId: currentSessionId,
+        guestName: guestName || '匿名宾客',
+      });
+    }
 
     // Save assistant response
     sessionService.addMessage(
