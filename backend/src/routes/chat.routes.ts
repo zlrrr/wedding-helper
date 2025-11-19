@@ -132,34 +132,80 @@ router.post('/message', optionalAuthenticate, async (req: AuthRequest, res: Resp
       messageCount: conversationHistory.length,
     });
 
-    // Retrieve RAG context from knowledge base
+    // Retrieve context from knowledge base
+    // Supports multiple modes: rag (default), fulltext, hybrid
     let ragContext = '';
+    const knowledgeMode = process.env.KNOWLEDGE_MODE || 'hybrid';  // rag | fulltext | hybrid
+
     try {
-      const contextChunks = knowledgeService.retrieveContext(userId, sanitizedMessage, 5);
+      if (knowledgeMode === 'fulltext') {
+        // FULLTEXT MODE: Return all documents
+        ragContext = knowledgeService.retrieveContextFullText(userId);
 
-      if (contextChunks.length > 0) {
-        ragContext = contextChunks.join('\n\n---\n\n');
+        if (ragContext.length > 0) {
+          logger.info('[CHAT-005a] Full text context retrieved', {
+            userId,
+            sessionId: currentSessionId,
+            contextLength: ragContext.length,
+            mode: 'fulltext',
+          });
+        }
+      } else if (knowledgeMode === 'hybrid') {
+        // HYBRID MODE: Try RAG first, fallback to fulltext if no results
+        const contextChunks = knowledgeService.retrieveContext(userId, sanitizedMessage, 5);
 
-        logger.info('[CHAT-005a] RAG context retrieved', {
-          userId,
-          sessionId: currentSessionId,
-          chunksFound: contextChunks.length,
-          contextLength: ragContext.length,
-        });
+        if (contextChunks.length > 0) {
+          ragContext = contextChunks.join('\n\n---\n\n');
+
+          logger.info('[CHAT-005a] RAG context retrieved', {
+            userId,
+            sessionId: currentSessionId,
+            chunksFound: contextChunks.length,
+            contextLength: ragContext.length,
+            mode: 'hybrid-rag',
+          });
+        } else {
+          // No RAG results, fallback to fulltext
+          ragContext = knowledgeService.retrieveContextFullText(userId);
+
+          logger.info('[CHAT-005a] Fallback to full text', {
+            userId,
+            sessionId: currentSessionId,
+            contextLength: ragContext.length,
+            mode: 'hybrid-fulltext',
+          });
+        }
       } else {
-        logger.info('[CHAT-005b] No RAG context found', {
-          userId,
-          sessionId: currentSessionId,
-          message: sanitizedMessage,
-        });
+        // RAG MODE (default): Keyword-based retrieval only
+        const contextChunks = knowledgeService.retrieveContext(userId, sanitizedMessage, 5);
+
+        if (contextChunks.length > 0) {
+          ragContext = contextChunks.join('\n\n---\n\n');
+
+          logger.info('[CHAT-005a] RAG context retrieved', {
+            userId,
+            sessionId: currentSessionId,
+            chunksFound: contextChunks.length,
+            contextLength: ragContext.length,
+            mode: 'rag',
+          });
+        } else {
+          logger.info('[CHAT-005b] No RAG context found', {
+            userId,
+            sessionId: currentSessionId,
+            message: sanitizedMessage,
+            mode: 'rag',
+          });
+        }
       }
     } catch (error) {
-      logger.error('[CHAT-WARN] Failed to retrieve RAG context', {
+      logger.error('[CHAT-WARN] Failed to retrieve context', {
         error,
         userId,
         sessionId: currentSessionId,
+        mode: knowledgeMode,
       });
-      // Continue without RAG context if retrieval fails
+      // Continue without context if retrieval fails
     }
 
     // Build system prompt with RAG context
