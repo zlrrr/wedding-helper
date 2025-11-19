@@ -216,11 +216,14 @@ router.post('/message', optionalAuthenticate, async (req: AuthRequest, res: Resp
       userId,
       sessionId: currentSessionId,
       provider: process.env.LLM_PROVIDER || 'gemini',
+      systemPromptLength: systemPrompt.length,
+      hasRAGContext: ragContext.length > 0,
     });
 
     const llmResponse = await llmService.generateApology({
       message: sanitizedMessage,
       history: conversationHistory,
+      systemPrompt: systemPrompt,  // Pass RAG-enhanced system prompt
     });
 
     logger.info('[CHAT-007] LLM response received', {

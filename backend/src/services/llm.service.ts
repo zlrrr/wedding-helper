@@ -106,7 +106,7 @@ export class LLMService {
     const logger = (await import('../utils/logger.js')).default;
 
     try {
-      const { message, style = 'gentle', history = [] } = params;
+      const { message, style = 'gentle', history = [], systemPrompt } = params;
 
       logger.info('[LLM-001] Starting apology generation', {
         messageLength: message.length,
@@ -114,6 +114,8 @@ export class LLMService {
         historyLength: history.length,
         provider: this.provider,
         model: this.config.model,
+        hasCustomSystemPrompt: !!systemPrompt,
+        systemPromptLength: systemPrompt?.length || 0,
       });
 
       // Detect emotion from user message
@@ -125,10 +127,11 @@ export class LLMService {
       });
 
       // Build messages array
+      // Use custom system prompt if provided (e.g., with RAG context), otherwise use default
       const messages: LLMMessage[] = [
         {
           role: 'system',
-          content: getSystemPrompt(style),
+          content: systemPrompt || getSystemPrompt(style),
         },
         ...history,
         {
