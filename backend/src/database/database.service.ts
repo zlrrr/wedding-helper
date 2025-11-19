@@ -35,6 +35,13 @@ export class DatabaseService {
         logger.info('Created data directory', { path: dataDir });
       }
 
+      // Ensure temp directory exists for file uploads
+      const tempDir = path.join(process.cwd(), 'data', 'temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+        logger.info('Created temp directory', { path: tempDir });
+      }
+
       // Open database connection
       this.db = new Database(this.dbPath);
       logger.info('Database connection established', { path: this.dbPath });

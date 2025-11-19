@@ -204,13 +204,23 @@ router.post('/message', optionalAuthenticate, async (req: AuthRequest, res: Resp
       messageType,
       tokensUsed: llmResponse.tokensUsed,
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('[CHAT-ERROR] Chat request failed', {
       error,
+      errorMessage: error?.message,
+      errorStack: error?.stack,
       userId: req.user?.userId,
       sessionId: req.body?.sessionId,
+      message: req.body?.message,
+      guestName: req.body?.guestName,
     });
-    next(error);
+
+    // Return user-friendly error message
+    res.status(500).json({
+      error: 'ChatError',
+      message: '消息发送失败，请稍后重试',
+      details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+    });
   }
 });
 
