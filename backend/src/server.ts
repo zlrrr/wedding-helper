@@ -14,7 +14,7 @@ import logger, { requestLogger } from './utils/logger.js';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.BACKEND_PORT || 5001;
+const PORT = process.env.PORT || process.env.BACKEND_PORT || 10000;
 
 // Request logging middleware (before other middleware)
 app.use(requestLogger);
