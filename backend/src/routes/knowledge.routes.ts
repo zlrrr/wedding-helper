@@ -93,13 +93,23 @@ router.post(
         message: 'Document uploaded successfully',
         document: result,
       });
-    } catch (error) {
+    } catch (error: any) {
       logger.error('[KNOWLEDGE-ROUTE-ERROR] Document upload failed', {
         error,
+        errorMessage: error?.message,
+        errorStack: error?.stack,
         userId: req.user?.userId,
         filename: req.file?.originalname,
+        filePath: req.file?.path,
+        fileSize: req.file?.size,
       });
-      next(error);
+
+      // Return user-friendly error message
+      res.status(500).json({
+        error: 'UploadError',
+        message: '文档上传失败，请稍后重试',
+        details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+      });
     }
   }
 );

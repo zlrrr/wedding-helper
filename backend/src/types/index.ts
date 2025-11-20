@@ -125,6 +125,7 @@ export interface ApologyRequest {
   message: string
   style?: ApologyStyle
   emotion?: string
+  systemPrompt?: string  // Optional custom system prompt (e.g., with RAG context)
 }
 
 export interface ApologyResponse {

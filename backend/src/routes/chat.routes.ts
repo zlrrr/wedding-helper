@@ -25,9 +25,10 @@ const router = express.Router();
  * Send a message and get assistant response
  * Creates new session if sessionId is null
  */
-router.post('/message', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/message', optionalAuthenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user!.userId;
+    // Allow anonymous users (guests) - use userId 0 for anonymous
+    const userId = req.user?.userId || 0;
     const { sessionId, message, guestName } = req.body;
 
     logger.info('[CHAT-001] Processing chat message', {
@@ -97,7 +98,117 @@ router.post('/message', authenticate, async (req: AuthRequest, res: Response, ne
       messageType,
     });
 
-    // Save user message
+    // Get recent conversation history for context (before saving current message to avoid duplication)
+    const conversationHistory = sessionService.getRecentMessages(currentSessionId, userId, 10);
+
+    logger.info('[CHAT-005] Retrieved conversation history', {
+      userId,
+      sessionId: currentSessionId,
+      messageCount: conversationHistory.length,
+    });
+
+    // Retrieve context from knowledge base
+    // Supports multiple modes: rag (default), fulltext, hybrid
+    let ragContext = '';
+    const knowledgeMode = process.env.KNOWLEDGE_MODE || 'hybrid';  // rag | fulltext | hybrid
+
+    try {
+      if (knowledgeMode === 'fulltext') {
+        // FULLTEXT MODE: Return all documents
+        ragContext = knowledgeService.retrieveContextFullText(userId);
+
+        if (ragContext.length > 0) {
+          logger.info('[CHAT-005a] Full text context retrieved', {
+            userId,
+            sessionId: currentSessionId,
+            contextLength: ragContext.length,
+            mode: 'fulltext',
+          });
+        }
+      } else if (knowledgeMode === 'hybrid') {
+        // HYBRID MODE: Try RAG first, fallback to fulltext if no results
+        const contextChunks = knowledgeService.retrieveContext(userId, sanitizedMessage, 5);
+
+        if (contextChunks.length > 0) {
+          ragContext = contextChunks.join('\n\n---\n\n');
+
+          logger.info('[CHAT-005a] RAG context retrieved', {
+            userId,
+            sessionId: currentSessionId,
+            chunksFound: contextChunks.length,
+            contextLength: ragContext.length,
+            mode: 'hybrid-rag',
+          });
+        } else {
+          // No RAG results, fallback to fulltext
+          ragContext = knowledgeService.retrieveContextFullText(userId);
+
+          logger.info('[CHAT-005a] Fallback to full text', {
+            userId,
+            sessionId: currentSessionId,
+            contextLength: ragContext.length,
+            mode: 'hybrid-fulltext',
+          });
+        }
+      } else {
+        // RAG MODE (default): Keyword-based retrieval only
+        const contextChunks = knowledgeService.retrieveContext(userId, sanitizedMessage, 5);
+
+        if (contextChunks.length > 0) {
+          ragContext = contextChunks.join('\n\n---\n\n');
+
+          logger.info('[CHAT-005a] RAG context retrieved', {
+            userId,
+            sessionId: currentSessionId,
+            chunksFound: contextChunks.length,
+            contextLength: ragContext.length,
+            mode: 'rag',
+          });
+        } else {
+          logger.info('[CHAT-005b] No RAG context found', {
+            userId,
+            sessionId: currentSessionId,
+            message: sanitizedMessage,
+            mode: 'rag',
+          });
+        }
+      }
+    } catch (error) {
+      logger.error('[CHAT-WARN] Failed to retrieve context', {
+        error,
+        userId,
+        sessionId: currentSessionId,
+        mode: knowledgeMode,
+      });
+      // Continue without context if retrieval fails
+    }
+
+    // Build system prompt with RAG context
+    const systemPrompt = buildSystemPromptWithContext(ragContext);
+
+    // Call LLM service
+    logger.info('[CHAT-006] Calling LLM service', {
+      userId,
+      sessionId: currentSessionId,
+      provider: process.env.LLM_PROVIDER || 'gemini',
+      systemPromptLength: systemPrompt.length,
+      hasRAGContext: ragContext.length > 0,
+    });
+
+    const llmResponse = await llmService.generateApology({
+      message: sanitizedMessage,
+      history: conversationHistory,
+      systemPrompt: systemPrompt,  // Pass RAG-enhanced system prompt
+    });
+
+    logger.info('[CHAT-007] LLM response received', {
+      userId,
+      sessionId: currentSessionId,
+      tokensUsed: llmResponse.tokensUsed,
+      responseLength: llmResponse.apology.length,
+    });
+
+    // Save user message (after LLM call to avoid duplication in conversation history)
     sessionService.addMessage(
       currentSessionId,
       userId,
@@ -122,67 +233,6 @@ router.post('/message', authenticate, async (req: AuthRequest, res: Response, ne
       });
     }
 
-    // Get recent conversation history for context
-    const conversationHistory = sessionService.getRecentMessages(currentSessionId, userId, 10);
-
-    logger.info('[CHAT-005] Retrieved conversation history', {
-      userId,
-      sessionId: currentSessionId,
-      messageCount: conversationHistory.length,
-    });
-
-    // Retrieve RAG context from knowledge base
-    let ragContext = '';
-    try {
-      const contextChunks = knowledgeService.retrieveContext(userId, sanitizedMessage, 5);
-
-      if (contextChunks.length > 0) {
-        ragContext = contextChunks.join('\n\n---\n\n');
-
-        logger.info('[CHAT-005a] RAG context retrieved', {
-          userId,
-          sessionId: currentSessionId,
-          chunksFound: contextChunks.length,
-          contextLength: ragContext.length,
-        });
-      } else {
-        logger.info('[CHAT-005b] No RAG context found', {
-          userId,
-          sessionId: currentSessionId,
-          message: sanitizedMessage,
-        });
-      }
-    } catch (error) {
-      logger.error('[CHAT-WARN] Failed to retrieve RAG context', {
-        error,
-        userId,
-        sessionId: currentSessionId,
-      });
-      // Continue without RAG context if retrieval fails
-    }
-
-    // Build system prompt with RAG context
-    const systemPrompt = buildSystemPromptWithContext(ragContext);
-
-    // Call LLM service
-    logger.info('[CHAT-006] Calling LLM service', {
-      userId,
-      sessionId: currentSessionId,
-      provider: process.env.LLM_PROVIDER || 'gemini',
-    });
-
-    const llmResponse = await llmService.generateApology({
-      message: sanitizedMessage,
-      history: conversationHistory,
-    });
-
-    logger.info('[CHAT-007] LLM response received', {
-      userId,
-      sessionId: currentSessionId,
-      tokensUsed: llmResponse.tokensUsed,
-      responseLength: llmResponse.apology.length,
-    });
-
     // Save assistant response
     sessionService.addMessage(
       currentSessionId,
@@ -203,13 +253,23 @@ router.post('/message', authenticate, async (req: AuthRequest, res: Response, ne
       messageType,
       tokensUsed: llmResponse.tokensUsed,
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('[CHAT-ERROR] Chat request failed', {
       error,
+      errorMessage: error?.message,
+      errorStack: error?.stack,
       userId: req.user?.userId,
       sessionId: req.body?.sessionId,
+      message: req.body?.message,
+      guestName: req.body?.guestName,
     });
-    next(error);
+
+    // Return user-friendly error message
+    res.status(500).json({
+      error: 'ChatError',
+      message: '消息发送失败，请稍后重试',
+      details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+    });
   }
 });
 

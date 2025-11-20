@@ -469,6 +469,10 @@ export class KnowledgeService {
    * @param maxChunks Maximum number of chunks to return
    * @returns Array of relevant text chunks
    */
+  /**
+   * Retrieve context using RAG (keyword-based search)
+   * Improved with character-level tokenization for Chinese
+   */
   retrieveContext(userId: number, query: string, maxChunks: number = 5): string[] {
     try {
       logger.info('[KNOWLEDGE-017] Retrieving RAG context', {
@@ -477,12 +481,20 @@ export class KnowledgeService {
         maxChunks,
       });
 
-      // Extract keywords from query (simple tokenization)
-      const keywords = query
-        .toLowerCase()
-        .replace(/[^\u4e00-\u9fa5a-z0-9\s]/g, ' ') // Keep Chinese, English, numbers
+      // Improved keyword extraction for Chinese
+      // Split into individual characters for better Chinese matching
+      const queryLower = query.toLowerCase();
+
+      // Extract meaningful Chinese characters and English words
+      const chineseChars = queryLower.match(/[\u4e00-\u9fa5]/g) || [];
+      const englishWords = queryLower
+        .replace(/[\u4e00-\u9fa5]/g, ' ')  // Remove Chinese
+        .replace(/[^a-z0-9\s]/g, ' ')      // Keep only English and numbers
         .split(/\s+/)
-        .filter(word => word.length > 1); // Filter out single characters
+        .filter(word => word.length > 1);
+
+      // Combine: use Chinese characters + English words
+      const keywords = [...chineseChars, ...englishWords].filter(kw => kw.length > 0);
 
       if (keywords.length === 0) {
         logger.warn('[KNOWLEDGE-WARN] No keywords extracted from query', {
@@ -494,12 +506,12 @@ export class KnowledgeService {
 
       logger.info('[KNOWLEDGE-018] Keywords extracted', {
         userId,
-        keywords,
+        keywords: keywords.slice(0, 10),  // Log first 10 to avoid spam
+        totalKeywords: keywords.length,
       });
 
       // Search chunks using keyword matching
-      // SQLite LIKE is case-insensitive for ASCII, but not for Unicode
-      // We'll do a simple full-text search approach
+      // Use OR logic: match any keyword
       const searchConditions = keywords
         .map(() => 'LOWER(chunk_text) LIKE ?')
         .join(' OR ');
@@ -532,6 +544,49 @@ export class KnowledgeService {
         query,
       });
       return [];
+    }
+  }
+
+  /**
+   * Retrieve context using FULL TEXT mode (all documents)
+   * Lightweight alternative to RAG - just return all content
+   * Best for small knowledge bases (<50KB)
+   */
+  retrieveContextFullText(userId: number): string {
+    try {
+      logger.info('[KNOWLEDGE-020] Retrieving full text context', { userId });
+
+      const documents = this.db.query<DBDocument>(
+        `SELECT original_filename, content_text
+         FROM knowledge_documents
+         WHERE user_id = ?
+         ORDER BY upload_date ASC`,
+        [userId]
+      );
+
+      if (documents.length === 0) {
+        logger.info('[KNOWLEDGE-021] No documents found', { userId });
+        return '';
+      }
+
+      // Concatenate all documents with headers
+      const fullText = documents
+        .map(doc => `【文档: ${doc.original_filename}】\n${doc.content_text}`)
+        .join('\n\n---\n\n');
+
+      logger.info('[KNOWLEDGE-022] Full text context retrieved', {
+        userId,
+        documentCount: documents.length,
+        totalLength: fullText.length,
+      });
+
+      return fullText;
+    } catch (error) {
+      logger.error('[KNOWLEDGE-ERROR] Failed to retrieve full text context', {
+        error,
+        userId,
+      });
+      return '';
     }
   }
 

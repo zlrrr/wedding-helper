@@ -106,7 +106,7 @@ export class LLMService {
     const logger = (await import('../utils/logger.js')).default;
 
     try {
-      const { message, style = 'gentle', history = [] } = params;
+      const { message, style = 'gentle', history = [], systemPrompt } = params;
 
       logger.info('[LLM-001] Starting apology generation', {
         messageLength: message.length,
@@ -114,6 +114,8 @@ export class LLMService {
         historyLength: history.length,
         provider: this.provider,
         model: this.config.model,
+        hasCustomSystemPrompt: !!systemPrompt,
+        systemPromptLength: systemPrompt?.length || 0,
       });
 
       // Detect emotion from user message
@@ -125,10 +127,11 @@ export class LLMService {
       });
 
       // Build messages array
+      // Use custom system prompt if provided (e.g., with RAG context), otherwise use default
       const messages: LLMMessage[] = [
         {
           role: 'system',
-          content: getSystemPrompt(style),
+          content: systemPrompt || getSystemPrompt(style),
         },
         ...history,
         {
@@ -299,18 +302,21 @@ export class LLMService {
       parts: [{ text: msg.content }],
     }));
 
-    // Prepend system message to first user message if exists
-    if (systemMessage && contents.length > 0 && contents[0].role === 'user') {
-      contents[0].parts[0].text = `${systemMessage.content}\n\n${contents[0].parts[0].text}`;
-    }
-
-    const geminiRequest = {
+    // Build Gemini request with systemInstruction (Gemini 1.5+)
+    const geminiRequest: any = {
       contents,
       generationConfig: {
         temperature: request.temperature || this.config.temperature,
         maxOutputTokens: request.max_tokens || this.config.maxTokens,
       },
     };
+
+    // Add system instruction if provided (Gemini 1.5+ feature)
+    if (systemMessage) {
+      geminiRequest.systemInstruction = {
+        parts: [{ text: systemMessage.content }],
+      };
+    }
 
     // Gemini uses API key as query parameter
     const url = `/models/${this.config.model}:generateContent?key=${this.config.apiKey}`;

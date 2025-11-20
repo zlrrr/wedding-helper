@@ -14,7 +14,7 @@ import logger, { requestLogger } from './utils/logger.js';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.BACKEND_PORT || 5001;
+const PORT = process.env.PORT || process.env.BACKEND_PORT || 10000;
 
 // Request logging middleware (before other middleware)
 app.use(requestLogger);
@@ -28,9 +28,29 @@ const allowedOrigins = [
   process.env.CORS_ORIGIN || '',
 ].filter(origin => origin.length > 0);
 
+// Helper function to check if origin is allowed
+const isOriginAllowed = (origin: string): boolean => {
+  // Check exact match in allowedOrigins
+  if (allowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  // In production, allow Vercel deployments for this project
+  if (process.env.NODE_ENV === 'production') {
+    // Allow any vercel.app deployment that starts with wedding-helper
+    if (origin.includes('wedding-helper') && origin.includes('.vercel.app')) {
+      return true;
+    }
+    // Allow the render backend itself
+    if (origin.includes('wedding-helper') && origin.includes('.onrender.com')) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 // IMPORTANT: When credentials: true, we cannot use wildcard '*' origin
-// If no production origins are configured, we'll allow any origin dynamically
-// This is less secure but necessary when FRONTEND_URL is not set
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     // Allow requests with no origin (like mobile apps, Postman, or same-origin)
@@ -38,19 +58,12 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    // If we have configured origins, check against the list
-    if (allowedOrigins.length > 0) {
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        logger.warn('CORS origin blocked', { origin, allowedOrigins });
-        callback(new Error('Not allowed by CORS'));
-      }
-    } else {
-      // No origins configured - allow all (development mode)
-      // Log a warning to remind to set FRONTEND_URL in production
-      logger.warn('CORS: No FRONTEND_URL configured, allowing all origins', { origin });
+    // Check if origin is allowed
+    if (isOriginAllowed(origin)) {
       callback(null, true);
+    } else {
+      logger.warn('CORS origin blocked', { origin, allowedOrigins, env: process.env.NODE_ENV });
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
